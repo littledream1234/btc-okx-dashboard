@@ -1,0 +1,10 @@
+{
+  "name": "BTC 合約工作台",
+  "short_name": "BTC 工作台",
+  "description": "OKX BTC-USDT-SWAP 的市場分析、風控與交易日誌。",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "lang": "zh-TW"
+}
