@@ -70,3 +70,17 @@ footer { margin-top: 31px; color: #6f84a3; font-size: .72rem; text-align: center
 .instrument-option:focus-visible { outline:3px solid #f8c76d; outline-offset:1px; }
 .instrument-picker p { grid-column:1/-1; margin:0; font-size:12px; line-height:1.6; color:#a8b8ce; }
 @media(max-width:600px){.instrument-picker{grid-template-columns:1fr;}.instrument-picker .button{width:100%;}.price{overflow-wrap:anywhere;}}
+.scanner-panel { margin-bottom:20px; }
+.scan-controls { display:grid; grid-template-columns:1fr 1fr auto auto; gap:12px; align-items:end; margin-bottom:14px; }
+.scan-controls label { display:grid; gap:6px; min-width:0; }
+.scan-controls select { width:100%; padding:10px; border:1px solid #34445d; border-radius:8px; background:#101f33; color:#ccd9eb; font:inherit; }
+.scan-controls button:disabled { opacity:.45; cursor:not-allowed; }
+.scan-help { margin:12px 0; }
+.scan-help summary { color:#a8b8ce; font-size:13px; cursor:pointer; }
+.scan-note,#scan-progress,.scan-empty { color:#a8b8ce; font-size:13px; line-height:1.7; overflow-wrap:anywhere; }
+.scan-results { display:grid; gap:12px; max-height:520px; overflow:auto; }
+.scan-card { padding:14px; border:1px solid #34445d; border-radius:12px; min-width:0; }
+.scan-card h3 { margin:0 0 8px; font-size:15px; overflow-wrap:anywhere; }
+.scan-card p { font-size:13px; line-height:1.6; }
+@media(max-width:760px){.scan-controls{grid-template-columns:1fr 1fr;}}
+@media(max-width:420px){.scan-controls{grid-template-columns:1fr;}.scan-card .button{width:100%;}}

@@ -29,6 +29,23 @@
           <div id="instrument-list" class="instrument-list" role="group" aria-label="點選合約幣種"><p>載入清單中…</p></div>
           <p class="picker-note">只列出公開 API 回傳的正常交易 USDT 線性永續合約，不含現貨、幣本位、交割或盤前合約。實際可交易項目以你的 OKX 帳戶為準；新幣資料不足時不給方案。切換會保留本頁各幣種的未儲存表單，重新整理後草稿不保留。</p>
         </section>
+        <section class="card scanner-panel" aria-labelledby="scanner-title">
+          <div class="card-heading"><div><p class="eyebrow">批次分析・不會自動下單</p><h2 id="scanner-title">可規劃交易篩選</h2></div></div>
+          <div class="scan-controls">
+            <label>掃描範圍<select id="scan-scope"><option value="30">成交較活躍前 30 個</option><option value="60">成交較活躍前 60 個</option><option value="all">全部 USDT 永續合約</option></select></label>
+            <label>方向<select id="scan-direction"><option value="all">多／空都看</option><option value="long">只看偏多</option><option value="short">只看偏空</option></select></label>
+            <button type="button" class="button" id="start-scan">開始掃描</button>
+            <button type="button" class="button secondary" id="stop-scan" disabled>停止掃描</button>
+          </div>
+          <label class="check"><input type="checkbox" id="scan-only" checked /><span>只看可規劃（已通過規則，尚未確認進場觸發）</span></label>
+          <p id="scan-progress" role="status" aria-live="polite">尚未掃描</p>
+          <p class="scan-note">候選不是立即做單指令；結果最長有效 90 秒，點選後會重新分析。</p>
+          <details class="scan-help"><summary>篩選規則與注意事項</summary>
+          <p class="scan-note">沿用完整報告的多週期方向、ADX ≥ 20、量能 ≥ 1.20×、價差 ≤ 5 bps、費率歷史與扣費後 R:R ≥ 2。使用下方「分析用費用＋滑價」假設；這是未回測的規則篩選，不是勝率或立即做單指令。</p>
+          <p class="scan-note">成交活躍度以 24H 幣數 × 現價近似排序，不是實際 USDT 成交額。逐幣掃描、非同時快照；全部掃描可能需數分鐘，較早結果會過期。有效期限最長 90 秒，點選結果會重新分析。未掃描、資料失敗和未通過會分開顯示；只掃描所選範圍，新聞、帳戶倉位與進場觸發仍須人工確認。</p>
+          </details>
+          <div id="scan-results" class="scan-results"></div>
+        </section>
         <section class="hero-panel">
           <div>
             <div class="instrument-row">
@@ -208,5 +225,6 @@
     <script src="contracts.js"></script>
     <script src="evidence.js"></script>
     <script src="app.js"></script>
+    <script src="scanner.js"></script>
   </body>
 </html>

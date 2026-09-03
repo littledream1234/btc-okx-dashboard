@@ -77,11 +77,11 @@ function setConnection(status, text) {
   element.lastElementChild.textContent = text;
 }
 
-async function getJson(path) {
-  const response = await fetch(`${API}${path}`, { cache: 'no-store', signal: AbortSignal.timeout(12000) });
+async function getJson(path, signal) {
+  const response = await fetch(`${API}${path}`, { cache: 'no-store', signal: signal ? AbortSignal.any([signal,AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000) });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const json = await response.json();
-  if (json.code && json.code !== '0') throw new Error(json.msg || `OKX error ${json.code}`);
+  if (json.code && json.code !== '0') throw new Error(`OKX ${json.code}: ${json.msg || '資料錯誤'}`);
   if (!Array.isArray(json.data)) throw new Error('OKX 資料格式不符');
   return json.data;
 }
@@ -155,11 +155,11 @@ function updateOpenInterest(data) {
 function reportClass(direction) { return direction === 'long' ? 'positive' : direction === 'short' ? 'negative' : 'neutral'; }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
 
-function calculateDirectionReport() {
-  const h4 = technicals(state.candles4h,14400000), h1 = technicals(state.candles,3600000), m15 = technicals(state.candles15m,900000);
-  if (!h4 || !h1 || !m15 || !state.last || !state.funding) return null;
-  const fundingRate = state.funding.rate;
-  const spreadBps = state.ticker?.bid && state.ticker?.ask ? ((state.ticker.ask - state.ticker.bid) / state.last) * 10000 : null;
+function calculateDirectionReport(market = state, instrument = INSTRUMENT, costPercent = $('analysis-cost').value==='' ? NaN : Number($('analysis-cost').value)) {
+  const h4 = technicals(market.candles4h,14400000), h1 = technicals(market.candles,3600000), m15 = technicals(market.candles15m,900000);
+  if (!h4 || !h1 || !m15 || !market.last || !market.funding) return null;
+  const fundingRate = market.funding.rate;
+  const spreadBps = market.ticker?.bid && market.ticker?.ask ? ((market.ticker.ask - market.ticker.bid) / market.last) * 10000 : null;
   const longRules = [
     { weight: 25, label: '4H EMA20 高於 EMA50', pass: h4.ema20 > h4.ema50 },
     { weight: 10, label: '4H EMA50 斜率向上', pass: h4.ema50Slope > 0 },
@@ -178,7 +178,7 @@ function calculateDirectionReport() {
   ];
   const longScore = longRules.filter(rule => rule.pass).reduce((sum, rule) => sum + rule.weight, 0);
   const shortScore = shortRules.filter(rule => rule.pass).reduce((sum, rule) => sum + rule.weight, 0);
-  const stale = !state.healthy || !Number.isFinite(fundingRate) || [state.ticker.ts,state.markTs,state.funding.ts].some(ts=>!Number.isFinite(ts) || Date.now()-ts>90000 || ts-Date.now()>5000);
+  const stale = !market.healthy || !Number.isFinite(fundingRate) || [market.ticker.ts,market.markTs,market.funding.ts].some(ts=>!Number.isFinite(ts) || Date.now()-ts>90000 || ts-Date.now()>5000);
   const liquidityIssue = spreadBps === null || !Number.isFinite(spreadBps) || spreadBps < 0 || spreadBps > 5;
   const longAligned = longRules[0].pass && longRules[2].pass;
   const shortAligned = shortRules[0].pass && shortRules[2].pass;
@@ -190,10 +190,9 @@ function calculateDirectionReport() {
   } else if (stale) subtitle = '市場資料時間過期，暫停產生方向結論。';
   else if (liquidityIssue) subtitle = `買賣價差約 ${money(spreadBps, 2)} bps，高於 5 bps 門檻，暫不交易。`;
   const bias = direction;
-  const fundingPosition = Date.now()-state.historyFetchedAt<600000 ? BtcEvidence.fundingPosition(state.fundingHistory,state.funding) : null;
+  const fundingPosition = Date.now()-market.historyFetchedAt<600000 ? BtcEvidence.fundingPosition(market.fundingHistory,market.funding) : null;
   const levels = [...new Set([...h1.levels,...h4.levels])].sort((a,b)=>a-b);
-  const costPercent = $('analysis-cost').value==='' ? NaN : Number($('analysis-cost').value);
-  const candidate = bias==='wait' || !Number.isFinite(costPercent) || costPercent<0 || costPercent>5 ? null : BtcEvidence.structurePlan(bias,h1,levels,costPercent,state.last);
+  const candidate = bias==='wait' || !Number.isFinite(costPercent) || costPercent<0 || costPercent>5 ? null : BtcEvidence.structurePlan(bias,h1,levels,costPercent,market.last);
   const gates = [
     {label:'行情與已收盤 K 線有效；價差 ≤ 5 bps',pass:!stale&&!liquidityIssue},
     {label:`1H ADX(14) ${money(h1.adx)} ≥ 20（只衡量趨勢強弱）`,pass:h1.adx>=20},
@@ -210,7 +209,7 @@ function calculateDirectionReport() {
     subtitle=`${bias==='long'?'趨勢偏多':bias==='short'?'趨勢偏空':'多週期尚未形成可用方向'}。${blocked.length?'未通過：'+blocked.map(g=>g.label).join('；'):'等待方向一致'}。`;
   }
   const activeRules = bias === 'long' ? longRules : bias === 'short' ? shortRules : (longScore >= shortScore ? longRules : shortRules);
-  return { instrument:INSTRUMENT,base:state.base, direction,bias,status,subtitle,score,longScore,shortScore,rules:activeRules,gates,h4,h1,m15,plan,candidate,fundingPosition,fundingRate,spreadBps,stale,liquidityIssue,oi:state.openInterest,createdAt:Date.now(),last:state.last,mark:state.mark,ticker:{...state.ticker},costPercent,support:levels.filter(x=>x<state.last).at(-1),resistance:levels.find(x=>x>state.last) };
+  return { instrument,base:market.base, direction,bias,status,subtitle,score,longScore,shortScore,rules:activeRules,gates,h4,h1,m15,plan,candidate,fundingPosition,fundingRate,spreadBps,stale,liquidityIssue,oi:market.openInterest,createdAt:Date.now(),last:market.last,mark:market.mark,ticker:{...market.ticker},costPercent,support:levels.filter(x=>x<market.last).at(-1),resistance:levels.find(x=>x>market.last) };
 }
 
 
