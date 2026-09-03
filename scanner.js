@@ -24,10 +24,10 @@ function renderScanner() {
     const heading=document.createElement('h3');heading.textContent=`${row.instrument}｜${status}`;
     heading.className=eligible?reportClass(report.direction):'neutral';card.append(heading);
     const summary=document.createElement('p');
-    summary.textContent=report?`ADX ${money(report.h1.adx,2)}｜15m 量能 ${money(report.m15.volumeRatio,2)}×｜價差 ${money(report.spreadBps,2)} bps｜扣費 R:R ${money(report.candidate?.rr,2)}｜規則 ${report.score}/100（不是勝率）`:'無法完成本合約評估，不能視為可交易。';card.append(summary);
+    summary.textContent=report?`做多 ${report.longScore}/100 · 做空 ${report.shortScore}/100｜扣費 R:R ${money(report.candidate?.rr,2)}`:'資料不足，不能列為可交易。';card.append(summary);
     const note=document.createElement('p');note.className='scan-note';
-    note.textContent=row.error || (eligible?`${report.plan.withinZone?'價格在規劃區內':'尚未回到規劃區'}；仍須人工確認 15m 觸發、新聞與帳戶風控。`:(now>=row.expiresAt?'此結果超過資料有效期限，已撤出候選名單。':report.subtitle));card.append(note);
-    const time=document.createElement('p');time.className='scan-note';time.textContent=`評估：${new Date(row.checkedAt).toLocaleTimeString('zh-TW')}｜費用＋滑價假設 ${scanner.cost}%（不含資金費）`;card.append(time);
+    note.textContent=row.error || (eligible?`${report.plan.withinZone?'價格在規劃區內':'尚未回到規劃區'}；進場觸發尚待確認。`:(now>=row.expiresAt?'此結果已過期。':report.gates?.find(g=>!g.pass)?.label||'多週期方向尚未一致。'));card.append(note);
+    const time=document.createElement('p');time.className='scan-note';time.textContent=`${new Date(row.checkedAt).toLocaleTimeString('zh-TW')} · 分數非勝率 · 方向勝率尚未驗證`;card.append(time);
     const button=document.createElement('button');button.type='button';button.className='button secondary';button.dataset.scanSymbol=row.instrument;button.textContent='查看並重新分析';card.append(button);
     return card;
   }));

@@ -247,10 +247,14 @@ function renderTradeReport() {
   $('report-subtitle').textContent = report.subtitle; $('report-time').textContent = new Date(report.createdAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   $('report-reasons').innerHTML = report.rules.map(rule => `<div class="report-item ${rule.pass ? 'positive' : 'negative'}"><span>${escapeHtml(rule.label)}</span><span>${rule.pass ? '通過' : '未通過'}</span></div>`).join('');
   $('evidence-gates').innerHTML = report.gates.map(g=>`<div class="report-item ${g.pass?'positive':'negative'}"><span>${escapeHtml(g.label)}</span><span>${g.pass?'通過':'等待'}</span></div>`).join('');
-  setText('signal-score',`${report.score}/100`,className); setText('signal-bias',report.status,className);
-  $('signal-description').textContent='規則符合度，不是勝率。以完整報告及交易品質篩選為準。';
+  setText('long-score',`${report.longScore} / 100`,'positive');setText('short-score',`${report.shortScore} / 100`,'negative');
+  const failed=report.gates.filter(g=>!g.pass);
+  $('decision-reason').textContent=report.plan?'符合條件式規劃；仍須人工確認進場觸發，不要直接追價。':failed.length?`等待原因：${failed.slice(0,2).map(g=>g.label).join('；')}${failed.length>2?'；其餘請展開詳細分析':''}`:'多週期方向未一致，暫不建立計畫。';
   $('trend-pill').textContent=report.status;
-  $('signal-rules').textContent=`1H ADX ${money(report.h1.adx)}｜15m 量能 ${money(report.m15.volumeRatio)}×｜${report.gates.filter(g=>g.pass).length}/5 項品質篩選通過`;
+  const candidate=report.candidate;
+  const zoneDistance=candidate&&report.h1.atr>0?Math.max(candidate.entryLow-report.last,report.last-candidate.entryHigh,0)/report.h1.atr:null;
+  const core=[['進場位置',candidate?(candidate.withinZone?'位於規劃區 · 尚待觸發':`距規劃區 ${money(zoneDistance,2)} ATR`):'尚無合格方向'],['扣費後盈虧比',candidate&&candidate.rr!==null?`1 : ${money(candidate.rr,2)}`:'無可用結構目標'],['15m 相對量能',`${money(report.m15.volumeRatio,2)}×`],['即時買賣價差',`${money(report.spreadBps,2)} bps`]];
+  $('core-data').innerHTML=core.map(([label,value])=>`<div class="data-point"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
   if (report.plan) {
     const plan = report.plan;
     $('report-plan').innerHTML = [
@@ -290,10 +294,10 @@ function setText(id, value, className = '') { const element = $(id); element.tex
 
 function invalidateReport(reason) {
   state.report=null; state.healthy=false;
-  for (const id of ['report-title','report-badge','signal-bias','trend-pill']) setText(id,'資料無效／停止給單','neutral');
+  for (const id of ['report-title','report-badge','trend-pill']) setText(id,'資料無效／停止給單','neutral');
   $('report-subtitle').textContent=reason; $('report-plan').textContent='無有效交易方案。';
-  for(const id of ['report-data','report-reasons','evidence-gates','signal-rules']) $(id).textContent='等待重新取得有效資料。';
-  $('signal-description').textContent=reason; setText('signal-score','—','neutral');
+  for(const id of ['report-data','report-reasons','evidence-gates','core-data']) $(id).textContent='等待重新取得有效資料。';
+  $('decision-reason').textContent=reason;setText('long-score','—','neutral');setText('short-score','—','neutral');
 }
 
 function drawChart() {
@@ -449,7 +453,12 @@ function setupChecklist() {
   document.querySelectorAll('[data-check]').forEach(box => { box.checked=false; box.addEventListener('change',renderChecklist); }); renderChecklist();
 }
 function renderChecklist() { const done = [...document.querySelectorAll('[data-check]')].filter(box => box.checked).length; $('check-status').textContent = `完成 ${done} / 4 項${done === 4 ? ' · 可進行最後風險確認' : ''}`; }
-function setupTabs() { document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { document.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item === tab)); document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === tab.dataset.tab)); })); }
+function activateTab(name) {
+  document.querySelectorAll('.tab').forEach(tab=>{tab.classList.toggle('active',tab.dataset.tab===name);tab.setAttribute('aria-pressed',String(tab.dataset.tab===name));});
+  document.querySelectorAll('.tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===name));
+  if(name==='overview')requestAnimationFrame(drawChart);
+}
+function setupTabs() { document.querySelectorAll('.tab').forEach(tab=>tab.addEventListener('click',()=>activateTab(tab.dataset.tab)));activateTab('opportunities'); }
 
 function init() {
   $('journal-date').value = taipeiDate();
@@ -457,7 +466,9 @@ function init() {
   $('refresh-market').addEventListener('click', loadMarket); $('copy-report').addEventListener('click', copyTradeReport); $('download-report').addEventListener('click', downloadTradeReport); $('position-form').addEventListener('submit', event => { event.preventDefault(); updatePosition(); }); ['position-side', 'position-entry', 'position-size', 'position-stop'].forEach(id => $(id).addEventListener('input', updatePosition));
   $('risk-form').addEventListener('submit', calculateRisk); $('journal-form').addEventListener('submit', addJournalEntry); $('export-journal').addEventListener('click', exportJournal); $('journal-rows').addEventListener('click', event => { const id = event.target.dataset.delete; if (id) { saveJournal(journal().filter(item => item.id !== id)); renderJournal(); } });
   updateInstrumentLabels();
-  $('instrument-list').addEventListener('click',event=>{const button=event.target.closest('[data-symbol]');if(button)switchInstrument(button.dataset.symbol);});
+  $('instrument-list').addEventListener('click',event=>{const button=event.target.closest('[data-symbol]');if(button){switchInstrument(button.dataset.symbol);$('coin-picker').open=false;activateTab('overview');}});
+  $('view-current').addEventListener('click',()=>activateTab('overview'));
+  $('analysis-details').addEventListener('toggle',()=>{if($('analysis-details').open)requestAnimationFrame(drawChart);});
   $('reload-instruments').addEventListener('click',loadInstruments);
   window.addEventListener('resize', drawChart); loadInstruments();loadMarket(); setInterval(loadMarket, 30000);
   $('analysis-cost').addEventListener('input',()=>{if(state.healthy)renderTradeReport();});

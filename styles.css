@@ -84,3 +84,26 @@ footer { margin-top: 31px; color: #6f84a3; font-size: .72rem; text-align: center
 .scan-card p { font-size:13px; line-height:1.6; }
 @media(max-width:760px){.scan-controls{grid-template-columns:1fr 1fr;}}
 @media(max-width:420px){.scan-controls{grid-template-columns:1fr;}.scan-card .button{width:100%;}}
+/* v6: progressive disclosure and one decision view, with independent directional scores. */
+.coin-picker { margin:12px 0 20px; border:1px solid var(--line); border-radius:12px; background:#0c192b; }
+.coin-picker>summary { padding:14px 18px; color:#cbdcff; cursor:pointer; font-weight:700; }
+.coin-picker .instrument-picker { margin:0; border:0; }
+.home-intro { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px; }
+.direction-scores { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:18px 0 10px; }
+.direction-scores>div { padding:16px; background:#0b1b2f; border:1px solid var(--line); border-radius:12px; min-width:0; }
+.direction-scores span,.direction-scores small { display:block; color:var(--muted); font-size:12px; }
+.direction-scores strong { display:block; font-size:clamp(18px,4vw,28px); margin:8px 0; }
+.direction-score.long { border-top:3px solid var(--green); }.direction-score.short { border-top:3px solid var(--red); }
+.micro-note { color:var(--muted); font-size:12px; line-height:1.7; }
+.primary-plan { padding:18px 0; }
+.core-data { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:10px 0 20px; }
+.direction-history { border-top:1px solid var(--line); padding:18px 0; }
+.direction-history h3 { margin:0; font-size:15px; }
+.direction-history strong { font-size:18px; color:var(--gold); }
+.analysis-details { border-top:1px solid var(--line); margin-top:16px; padding-top:16px; }
+.analysis-details>summary { cursor:pointer; color:#b7d5ff; padding:8px 0; }
+.analysis-details .two-column { grid-template-columns:1fr; }.analysis-details .metric-grid { margin-top:18px; }
+.analysis-details .report-grid { grid-template-columns:1fr; }
+.scanner-panel .scan-card { box-shadow:none; }
+.tabs { margin-top:0; }
+@media(max-width:600px){.home-intro{align-items:flex-start;flex-direction:column;}.core-data{grid-template-columns:1fr 1fr;}.direction-scores>div{padding:12px;}.direction-scores strong{font-size:20px;}.tabs{gap:0;}.tab{padding:12px;}.report-heading{flex-wrap:wrap;}}

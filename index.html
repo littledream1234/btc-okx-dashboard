@@ -22,6 +22,14 @@
       </header>
 
       <main>
+        <nav class="tabs" aria-label="工作台區段">
+          <button class="tab active" type="button" data-tab="opportunities">找機會</button>
+          <button class="tab" type="button" data-tab="overview">交易計畫</button>
+          <button class="tab" type="button" data-tab="risk">風控</button>
+          <button class="tab" type="button" data-tab="journal">日誌</button>
+        </nav>
+        <details id="coin-picker" class="coin-picker">
+          <summary>選擇幣種 · 目前 <span data-base>BTC</span></summary>
         <section class="instrument-picker" aria-label="選擇 OKX 永續合約">
           <h2>USDT 永續合約清單</h2>
           <button class="button secondary" id="reload-instruments" type="button">重載清單</button>
@@ -29,6 +37,10 @@
           <div id="instrument-list" class="instrument-list" role="group" aria-label="點選合約幣種"><p>載入清單中…</p></div>
           <p class="picker-note">只列出公開 API 回傳的正常交易 USDT 線性永續合約，不含現貨、幣本位、交割或盤前合約。實際可交易項目以你的 OKX 帳戶為準；新幣資料不足時不給方案。切換會保留本頁各幣種的未儲存表單，重新整理後草稿不保留。</p>
         </section>
+        </details>
+        <section class="tab-panel active" id="opportunities" aria-label="找機會">
+          <div class="home-intro"><h2>先找機會，再看計畫</h2><button class="button secondary" type="button" id="view-current">查看 <span data-base>BTC</span> 計畫</button></div>
+
         <section class="card scanner-panel" aria-labelledby="scanner-title">
           <div class="card-heading"><div><p class="eyebrow">批次分析・不會自動下單</p><h2 id="scanner-title">可規劃交易篩選</h2></div></div>
           <div class="scan-controls">
@@ -46,11 +58,14 @@
           </details>
           <div id="scan-results" class="scan-results"></div>
         </section>
+
+        </section>
+        <section class="tab-panel" id="overview" aria-label="交易計畫">
         <section class="hero-panel">
           <div>
             <div class="instrument-row">
               <span class="instrument" id="instrument-name">BTC-USDT-SWAP</span>
-              <span class="pill">多幣種分析 · v4</span>
+              <span class="pill">雙向分析 · v6</span>
             </div>
             <p class="price" id="last-price">--</p>
             <p class="price-sub"><span id="change-24h">--</span> · 24 小時變動</p>
@@ -61,13 +76,62 @@
           </div>
         </section>
 
-        <nav class="tabs" aria-label="工作台區段">
-          <button class="tab active" type="button" data-tab="overview">市場分析</button>
-          <button class="tab" type="button" data-tab="risk">風控計算</button>
-          <button class="tab" type="button" data-tab="journal">交易日誌</button>
-        </nav>
+          <article class="card trade-report-card" id="trade-report-card" aria-live="polite">
+            <div class="card-heading report-heading">
+              <div>
+                <p class="eyebrow">多週期、可追溯規則</p>
+                <h2><span data-base>BTC</span> 方向與交易方案報告</h2>
+              </div>
+              <div class="report-actions">
+                <span class="decision-badge neutral" id="report-badge">讀取資料中</span>
+                <button class="button secondary small-button" id="copy-report" type="button">複製報告</button>
+                <button class="button secondary small-button" id="download-report" type="button">下載 TXT</button>
+              </div>
+            </div>
+            <div class="report-summary">
+              <div>
+                <p class="report-title" id="report-title">尚未產生結論</p>
+                <p class="report-subtitle" id="decision-reason">等待有效市場資料。</p>
+              </div>
+              <p class="report-time">資料時間：<span id="report-time">--</span></p>
+            </div>
+            <div class="direction-scores" aria-label="多空條件分數">
+              <div class="direction-score long"><span>做多支持度</span><strong id="long-score">—</strong><small>滿分 100 · 非勝率</small></div>
+              <div class="direction-score short"><span>做空支持度</span><strong id="short-score">—</strong><small>滿分 100 · 非勝率</small></div>
+            </div>
+            <p class="micro-note">分數高仍可能「等待」：未通過成本、量能或進場確認時，不代表能立刻做單。多空分數不必相加為 100。</p>
+            <section class="report-section primary-plan"><h3>條件式交易計畫</h3><div class="trade-plan" id="report-plan">等待市場資料。</div></section>
+            <div class="core-data" id="core-data"></div>
+            <section class="direction-history">
+              <h3><span data-base>BTC</span> 策略方向勝率</h3>
+              <div class="direction-scores">
+                <div><span>做多歷史勝率</span><strong id="long-winrate">尚未驗證</strong></div>
+                <div><span>做空歷史勝率</span><strong id="short-winrate">尚未驗證</strong></div>
+              </div>
+              <p class="micro-note" id="winrate-explanation">這裡要統計的是本幣種、指定策略的多／空交易結果，不是你的個人績效。現行進場仍需人工確認；在固定進出場與持倉期限、完成可重現回測前，不顯示百分比，也不把分數換成勝率。</p>
+            </section>
+            <details class="analysis-details" id="analysis-details"><summary>查看完整理由、數據與價格圖</summary>
+              <p class="report-subtitle" id="report-subtitle">等待有效市場資料。</p>
+            <section class="report-section evidence-section">
+              <h3>交易品質篩選 · multi-v4</h3>
+              <p>用來排除條件不足的交易，尚未經回測證明可提高勝率。ADX ≥ 20、量能 ≥ 1.20×、費率極端 10% 與扣費後 R:R ≥ 2 都是待驗證的規則門檻。</p>
+              <label>分析用來回手續費＋滑價緩衝 (%)<input id="analysis-cost" type="number" min="0" max="5" step="0.01" value="0.12" inputmode="decimal" /></label>
+              <p>0.12% 僅為可調假設，不是 OKX 帳戶實際費率；不含持倉資金費。風控計算頁的費用假設需另外確認。</p>
+              <div class="report-list" id="evidence-gates">等待公開市場數據。</div>
+              <p>支撐／壓力來自 1H、4H 各最近約 200 根 K 的左右各兩根確認轉折；新高／新低若無可用目標則等待。OI 不代表多空比；費率百分位不是價格反轉機率。重大新聞仍需人工檢查。<a href="https://www.okx.com/docs-v5/en/" target="_blank" rel="noopener">OKX 公開 API 說明</a></p>
+            </section>
+            <div class="report-grid">
+              <section class="report-section">
+                <h3>結論依據</h3>
+                <div class="report-list" id="report-reasons"></div>
+              </section>
 
-        <section class="tab-panel active" id="overview" aria-label="市場分析">
+            </div>
+            <section class="report-section report-data-section">
+              <h3>本次使用的數據</h3>
+              <div class="report-data" id="report-data"></div>
+            </section>
+
           <div class="metric-grid">
             <article class="metric-card">
               <p>標記價格</p><strong id="mark-price">--</strong>
@@ -97,62 +161,33 @@
               <div class="legend"><span><i class="legend-dot price-dot"></i>收盤價</span><span><i class="legend-dot ema20-dot"></i>EMA 20</span><span><i class="legend-dot ema50-dot"></i>EMA 50</span></div>
             </article>
 
-            <article class="card signal-card">
-              <div class="card-heading">
-                <div><p class="eyebrow">規則符合度，不是勝率</p><h2>多週期決策摘要</h2></div>
-                <span class="score" id="signal-score">--</span>
-              </div>
-              <p class="signal-bias" id="signal-bias">等待資料</p>
-              <p class="signal-description" id="signal-description">正在讀取 EMA、RSI 與收盤價結構。</p>
-              <div class="rule-list" id="signal-rules"></div>
-              <div class="caution">僅在進場前通過你的止損、倉位與事件風險檢查時才考慮交易。</div>
-            </article>
           </div>
 
-          <article class="card trade-report-card" id="trade-report-card" aria-live="polite">
-            <div class="card-heading report-heading">
-              <div>
-                <p class="eyebrow">多週期、可追溯規則</p>
-                <h2><span data-base>BTC</span> 方向與交易方案報告</h2>
-              </div>
-              <div class="report-actions">
-                <span class="decision-badge neutral" id="report-badge">讀取資料中</span>
-                <button class="button secondary small-button" id="copy-report" type="button">複製報告</button>
-                <button class="button secondary small-button" id="download-report" type="button">下載 TXT</button>
-              </div>
-            </div>
-            <div class="report-summary">
-              <div>
-                <p class="report-title" id="report-title">尚未產生結論</p>
-                <p class="report-subtitle" id="report-subtitle">系統會比較 4H、1H、15m 結構、成交量與資金費率；資料不足或矛盾時會顯示不交易。</p>
-              </div>
-              <p class="report-time">資料時間：<span id="report-time">--</span></p>
-            </div>
-            <section class="report-section evidence-section">
-              <h3>交易品質篩選 · multi-v4</h3>
-              <p>用來排除條件不足的交易，尚未經回測證明可提高勝率。ADX ≥ 20、量能 ≥ 1.20×、費率極端 10% 與扣費後 R:R ≥ 2 都是待驗證的規則門檻。</p>
-              <label>分析用來回手續費＋滑價緩衝 (%)<input id="analysis-cost" type="number" min="0" max="5" step="0.01" value="0.12" inputmode="decimal" /></label>
-              <p>0.12% 僅為可調假設，不是 OKX 帳戶實際費率；不含持倉資金費。風控計算頁的費用假設需另外確認。</p>
-              <div class="report-list" id="evidence-gates">等待公開市場數據。</div>
-              <p>支撐／壓力來自 1H、4H 各最近約 200 根 K 的左右各兩根確認轉折；新高／新低若無可用目標則等待。OI 不代表多空比；費率百分位不是價格反轉機率。重大新聞仍需人工檢查。<a href="https://www.okx.com/docs-v5/en/" target="_blank" rel="noopener">OKX 公開 API 說明</a></p>
-            </section>
-            <div class="report-grid">
-              <section class="report-section">
-                <h3>結論依據</h3>
-                <div class="report-list" id="report-reasons"></div>
-              </section>
-              <section class="report-section">
-                <h3>條件式方案</h3>
-                <div class="trade-plan" id="report-plan"><p>等待市場資料。</p></div>
-              </section>
-            </div>
-            <section class="report-section report-data-section">
-              <h3>本次使用的數據</h3>
-              <div class="report-data" id="report-data"></div>
-            </section>
+              <p class="micro-note">OI、24H 漲跌、標記價屬補充資訊，不當作單獨方向依據。指標的預測效力尚未完成樣本外驗證。</p>
+            </details>
             <p class="report-disclaimer">品質分數是規則符合度，不是勝率或獲利保證。任何方案都必須先通過你的單筆風險、日內停損與事件風險檢查。</p>
           </article>
 
+        </section>
+
+        <section class="tab-panel" id="risk" aria-label="風控計算">
+          <div class="page-intro"><p class="eyebrow">線性 USDT 合約估算 · <span data-instrument>BTC-USDT-SWAP</span></p><h2>以固定虧損額決定倉位，而不是反過來。</h2><p>依目前所選合約的公開面值、最小張數及下單步長計算；請在送單前於 OKX 再次確認費率與保證金規則。</p></div>
+          <div class="two-column risk-layout">
+            <article class="card">
+              <form id="risk-form" class="form-grid">
+                <label>帳戶權益 (USDT)<input id="account-equity" inputmode="decimal" type="number" min="0" step="1" value="1000" required /></label>
+                <label>單筆風險上限 (%)<input id="risk-percent" inputmode="decimal" type="number" min="0.1" max="10" step="0.1" value="1" required /></label>
+                <label>預計進場價 (USDT)<input id="risk-entry" inputmode="decimal" type="number" min="0" step="0.1" required /></label>
+                <label>止損價 (USDT)<input id="risk-stop" inputmode="decimal" type="number" min="0" step="0.1" required /></label>
+                <label>槓桿（僅用於保證金估算）<input id="risk-leverage" inputmode="numeric" type="number" min="1" max="125" step="1" value="5" required /></label>
+                <label>費用／滑價緩衝 (%)<input id="fee-buffer" inputmode="decimal" type="number" min="0" max="5" step="0.01" value="0.10" required /></label>
+                <button class="button" type="submit">計算安全倉位</button>
+              </form>
+            </article>
+            <article class="card results-card" id="risk-results">
+              <p class="empty-state">填入進場與止損價，即可得到風險限額、幣數、估計張數與保證金需求。</p>
+            </article>
+          </div>
           <div class="two-column lower-grid">
             <article class="card">
               <div class="card-heading"><div><p class="eyebrow">手動持倉追蹤</p><h2>目前計畫／持倉</h2></div></div>
@@ -177,28 +212,8 @@
           </div>
         </section>
 
-        <section class="tab-panel" id="risk" aria-label="風控計算">
-          <div class="page-intro"><p class="eyebrow">線性 USDT 合約估算 · <span data-instrument>BTC-USDT-SWAP</span></p><h2>以固定虧損額決定倉位，而不是反過來。</h2><p>依目前所選合約的公開面值、最小張數及下單步長計算；請在送單前於 OKX 再次確認費率與保證金規則。</p></div>
-          <div class="two-column risk-layout">
-            <article class="card">
-              <form id="risk-form" class="form-grid">
-                <label>帳戶權益 (USDT)<input id="account-equity" inputmode="decimal" type="number" min="0" step="1" value="1000" required /></label>
-                <label>單筆風險上限 (%)<input id="risk-percent" inputmode="decimal" type="number" min="0.1" max="10" step="0.1" value="1" required /></label>
-                <label>預計進場價 (USDT)<input id="risk-entry" inputmode="decimal" type="number" min="0" step="0.1" required /></label>
-                <label>止損價 (USDT)<input id="risk-stop" inputmode="decimal" type="number" min="0" step="0.1" required /></label>
-                <label>槓桿（僅用於保證金估算）<input id="risk-leverage" inputmode="numeric" type="number" min="1" max="125" step="1" value="5" required /></label>
-                <label>費用／滑價緩衝 (%)<input id="fee-buffer" inputmode="decimal" type="number" min="0" max="5" step="0.01" value="0.10" required /></label>
-                <button class="button" type="submit">計算安全倉位</button>
-              </form>
-            </article>
-            <article class="card results-card" id="risk-results">
-              <p class="empty-state">填入進場與止損價，即可得到風險限額、幣數、估計張數與保證金需求。</p>
-            </article>
-          </div>
-        </section>
-
         <section class="tab-panel" id="journal" aria-label="交易日誌">
-          <div class="page-intro journal-heading"><div><p class="eyebrow">分幣種儲存，只顯示目前合約；原有 BTC 紀錄保留</p><h2><span data-base>BTC</span> 交易日誌</h2></div><button type="button" class="button secondary" id="export-journal">匯出本幣種 CSV</button></div>
+          <div class="page-intro journal-heading"><div><p class="eyebrow">個人紀錄，與策略方向勝率分開；原有 BTC 紀錄保留</p><h2><span data-base>BTC</span> 個人交易日誌</h2></div><button type="button" class="button secondary" id="export-journal">匯出本幣種 CSV</button></div>
           <div class="journal-stats" id="journal-stats"></div>
           <div class="two-column journal-layout">
             <article class="card">
