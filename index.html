@@ -4,17 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#07111f" />
-    <meta name="description" content="BTC-USDT-SWAP 的 OKX 合約分析、風控與交易日誌工具。" />
+    <meta name="description" content="OKX 多幣種 USDT 永續合約分析、風控與交易日誌工具。" />
     <link rel="manifest" href="manifest.json" />
     <link rel="stylesheet" href="styles.css" />
-    <title>BTC 合約工作台</title>
+    <title>OKX 合約工作台</title>
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
         <div>
           <p class="eyebrow">OKX · USDT 永續合約</p>
-          <h1>BTC 合約工作台</h1>
+          <h1>OKX 合約工作台</h1>
         </div>
         <div class="connection" id="connection-status" aria-live="polite">
           <span class="status-dot"></span><span>載入市場資料中</span>
@@ -22,11 +22,18 @@
       </header>
 
       <main>
+        <section class="instrument-picker" aria-label="選擇 OKX 永續合約">
+          <label>搜尋幣種<input id="instrument-search" type="search" placeholder="例如 ETH、SOL、DOGE" autocomplete="off" /></label>
+          <label>USDT 永續合約<select id="instrument-select" disabled><option value="BTC-USDT-SWAP">BTC / USDT 永續</option></select></label>
+          <button class="button secondary" id="reload-instruments" type="button">重載清單</button>
+          <p id="instrument-count" aria-live="polite">正在取得 OKX 合約清單…</p>
+          <p class="picker-note">只列出公開 API 回傳的正常交易 USDT 線性永續合約，不含現貨、幣本位、交割或盤前合約。實際可交易項目以你的 OKX 帳戶為準；新幣資料不足時不給方案。切換會保留本頁各幣種的未儲存表單，重新整理後草稿不保留。</p>
+        </section>
         <section class="hero-panel">
           <div>
             <div class="instrument-row">
-              <span class="instrument">BTC-USDT-SWAP</span>
-              <span class="pill">多週期分析 · v3</span>
+              <span class="instrument" id="instrument-name">BTC-USDT-SWAP</span>
+              <span class="pill">多幣種分析 · v4</span>
             </div>
             <p class="price" id="last-price">--</p>
             <p class="price-sub"><span id="change-24h">--</span> · 24 小時變動</p>
@@ -66,7 +73,7 @@
           <div class="two-column">
             <article class="card chart-card">
               <div class="card-heading">
-                <div><p class="eyebrow">最近 100 根 K 線</p><h2>價格結構</h2></div>
+                <div><p class="eyebrow">最近約 200 根已收盤 K 線</p><h2>價格結構</h2></div>
                 <span class="pill" id="trend-pill">分析中</span>
               </div>
               <canvas id="price-chart" aria-label="BTC 1 小時價格走勢圖"></canvas>
@@ -89,7 +96,7 @@
             <div class="card-heading report-heading">
               <div>
                 <p class="eyebrow">多週期、可追溯規則</p>
-                <h2>方向與交易方案報告</h2>
+                <h2><span data-base>BTC</span> 方向與交易方案報告</h2>
               </div>
               <div class="report-actions">
                 <span class="decision-badge neutral" id="report-badge">讀取資料中</span>
@@ -105,7 +112,7 @@
               <p class="report-time">資料時間：<span id="report-time">--</span></p>
             </div>
             <section class="report-section evidence-section">
-              <h3>交易品質篩選 · evidence-v3</h3>
+              <h3>交易品質篩選 · multi-v4</h3>
               <p>用來排除條件不足的交易，尚未經回測證明可提高勝率。ADX ≥ 20、量能 ≥ 1.20×、費率極端 10% 與扣費後 R:R ≥ 2 都是待驗證的規則門檻。</p>
               <label>分析用來回手續費＋滑價緩衝 (%)<input id="analysis-cost" type="number" min="0" max="5" step="0.01" value="0.12" inputmode="decimal" /></label>
               <p>0.12% 僅為可調假設，不是 OKX 帳戶實際費率；不含持倉資金費。風控計算頁的費用假設需另外確認。</p>
@@ -135,7 +142,7 @@
               <form id="position-form" class="form-grid compact-form">
                 <label>方向<select id="position-side"><option value="long">做多</option><option value="short">做空</option></select></label>
                 <label>進場價 (USDT)<input id="position-entry" inputmode="decimal" type="number" min="0" step="0.1" placeholder="例如 65000" /></label>
-                <label>持倉量 (BTC)<input id="position-size" inputmode="decimal" type="number" min="0" step="0.001" placeholder="例如 0.02" /></label>
+                <label>持倉量 (<span data-base>BTC</span>)<input id="position-size" inputmode="decimal" type="number" min="0" step="any" placeholder="幣數，非合約張數" /></label>
                 <label>止損價 (USDT)<input id="position-stop" inputmode="decimal" type="number" min="0" step="0.1" placeholder="必要" /></label>
                 <button class="button" type="submit">計算持倉風險</button>
               </form>
@@ -154,7 +161,7 @@
         </section>
 
         <section class="tab-panel" id="risk" aria-label="風控計算">
-          <div class="page-intro"><p class="eyebrow">線性 USDT 合約估算</p><h2>以固定虧損額決定倉位，而不是反過來。</h2><p>計算結果會依 OKX BTC-USDT-SWAP 的公開合約面值換算張數；請在送單前於 OKX 再次確認最小下單量、費率與保證金規則。</p></div>
+          <div class="page-intro"><p class="eyebrow">線性 USDT 合約估算 · <span data-instrument>BTC-USDT-SWAP</span></p><h2>以固定虧損額決定倉位，而不是反過來。</h2><p>依目前所選合約的公開面值、最小張數及下單步長計算；請在送單前於 OKX 再次確認費率與保證金規則。</p></div>
           <div class="two-column risk-layout">
             <article class="card">
               <form id="risk-form" class="form-grid">
@@ -168,13 +175,13 @@
               </form>
             </article>
             <article class="card results-card" id="risk-results">
-              <p class="empty-state">填入進場與止損價，即可得到風險限額、BTC 數量、估計張數與保證金需求。</p>
+              <p class="empty-state">填入進場與止損價，即可得到風險限額、幣數、估計張數與保證金需求。</p>
             </article>
           </div>
         </section>
 
         <section class="tab-panel" id="journal" aria-label="交易日誌">
-          <div class="page-intro journal-heading"><div><p class="eyebrow">資料只保存在這台裝置的瀏覽器</p><h2>交易日誌</h2></div><button type="button" class="button secondary" id="export-journal">匯出 CSV</button></div>
+          <div class="page-intro journal-heading"><div><p class="eyebrow">分幣種儲存，只顯示目前合約；原有 BTC 紀錄保留</p><h2><span data-base>BTC</span> 交易日誌</h2></div><button type="button" class="button secondary" id="export-journal">匯出本幣種 CSV</button></div>
           <div class="journal-stats" id="journal-stats"></div>
           <div class="two-column journal-layout">
             <article class="card">
@@ -183,7 +190,7 @@
                 <label>方向<select id="journal-side"><option value="long">做多</option><option value="short">做空</option></select></label>
                 <label>進場價 (USDT)<input id="journal-entry" inputmode="decimal" type="number" min="0" step="0.1" required /></label>
                 <label>出場價 (USDT)<input id="journal-exit" inputmode="decimal" type="number" min="0" step="0.1" required /></label>
-                <label>數量 (BTC)<input id="journal-size" inputmode="decimal" type="number" min="0" step="0.001" required /></label>
+                <label>數量 (<span data-base>BTC</span>)<input id="journal-size" inputmode="decimal" type="number" min="0" step="any" required /></label>
                 <label>交易理由<input id="journal-reason" type="text" maxlength="80" placeholder="例如：1H EMA 回踩" /></label>
                 <label class="full-width">復盤筆記<textarea id="journal-notes" rows="3" maxlength="500" placeholder="哪些地方做對／需要改善？"></textarea></label>
                 <button class="button" type="submit">儲存交易</button>
@@ -198,6 +205,7 @@
 
       <footer>此工具提供教育與風險管理輔助，不構成投資建議，也不保證獲利。市場資料來源：OKX 公開 API。</footer>
     </div>
+    <script src="contracts.js"></script>
     <script src="evidence.js"></script>
     <script src="app.js"></script>
   </body>

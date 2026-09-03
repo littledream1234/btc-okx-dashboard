@@ -1,7 +1,36 @@
-# BTC-USDT-SWAP Workbench
+# OKX 多幣種合約工作台（multi-v4）
 
-A Traditional Chinese, responsive market-analysis and risk-planning dashboard using OKX public market data.
+這是 OKX USDT 線性永續合約的交易輔助工具。預設 BTC，可搜尋並切換公開 API 回傳之正常交易合約，例如 ETH、SOL、PEPE。幣本位、交割合約、現貨與盤前合約不在此版本支援範圍；實際可交易項目以你的 OKX 帳戶與地區限制為準。
 
-This site does not place orders or require an OKX API key. Trade journals are stored in each browser's local storage and are not uploaded to this repository or GitHub Pages.
+每次切換會清除舊行情與方案、重新取得合約規格；延遲回傳的前一幣種資料不會覆蓋目前頁面。OI、費率歷史、報告、倉位及日誌分幣種處理。相同頁面內保留各幣種表單草稿，重新整理後草稿不保留。舊 BTC 日誌保留在原儲存位置。CSV 與報告檔名標示合約，CSV 另含數量幣別。報告沿用尚未回測的篩選規則，不保證適用於每種幣。
 
-Signal scores describe unvalidated rule alignment, not win probabilities. The tool does not guarantee returns. Verify data freshness, fees, position size and liquidation risk independently before trading.
+## Windows 使用方式
+
+雙擊 `Launch-OKX-Dashboard.cmd`。它會直接以 Microsoft Edge 的獨立應用程式視窗開啟本機工作台；不需要 PowerShell、常駐伺服器或 OKX API Key。
+
+如果 Windows 封鎖 `.cmd` 檔，請直接雙擊同資料夾內的 `index.html`，並在瀏覽器中選擇 Microsoft Edge 開啟。
+
+若 Windows 顯示安全提示，請確認檔案位於此資料夾，並檢視腳本內容後再允許執行。此工具不需要 OKX API Key，也不會送出任何訂單。
+
+## 手機使用方式
+
+手機開啟 https://littledream1234.github.io/btc-okx-dashboard/，從支援的瀏覽器選單加入主畫面。日誌只儲存在目前裝置與瀏覽器，不會跨手機／電腦同步。多幣種更新沿用原網址。
+
+## 目前包含的功能
+
+- 即時讀取所選 OKX USDT 永續合約的行情、標記價格與資金費率；支援幣種搜尋、重載清單及小額價格顯示。
+- 取得各 200 根 4H、1H、15m K 線，只使用完整連續且已收盤的資料；EMA20/50、Wilder RSI/ATR、ADX14。
+- 交易品質篩選：1H ADX ≥ 20、15m 相對成交量 ≥ 1.20（與前 20 根比較）、買賣价差 ≤ 5 bps、同結算週期資金費率歷史百分位（多方 < 90／空方 > 10；至少 20 筆）。這些都是待回測的經驗門檻，不是勝率。
+- 最近確認轉折價位作為結構目標，以進場區最不利價格、止損距離、可調來回費用與滑價計算 R:R，至少 2 才保留條件方案。不含持倉資金費；缺乏目標時不虛構 2R。
+- OI 使用所選幣種數量比較約一小時變化（55–65 分鐘容差），首次需累積；不將美元價格效應當成增倉，不推斷多空比。快照依合約分開儲存。
+- TXT 報告包含數據、採樣時間、規則、篩選理由與費用假設。斷線、資料失敗或報告超過 90 秒撤下舊方案。進場回測觸發與重大新聞須人工確認。
+- 依目前合約 ctVal、lotSz、minSz 及帳戶風險，估算幣數、向下取整張數、名目價值與保證金。未取得規格或不足最小張數時不給數量。費率與保證金仍需在 OKX 確認。
+- 手動持倉盈虧／止損風險追蹤，以及交易前檢查清單。
+- 本機交易日誌、勝率、獲利因子、估計總盈虧及 CSV 匯出。
+
+## 重要限制
+
+- 這不是自動交易或投資建議工具，也不保證任何勝率或獲利。
+- 報告的「規則符合度」不是經回測校準的勝率；若結論是 `不交易／等待`，這是風控結果，不應自行把它解讀成反向訊號。
+- OKX 實際的可下單張數、費率、保證金與強平價取決於帳戶模式與交易所規則；務必在送單前於 OKX 介面確認。
+- 後續若串接 OKX 帳戶，應先使用模擬交易／唯讀 API，且絕不建立含 `Withdraw` 權限的 API Key。

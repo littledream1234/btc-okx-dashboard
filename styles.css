@@ -61,3 +61,8 @@ footer { margin-top: 31px; color: #6f84a3; font-size: .72rem; text-align: center
 .evidence-section input { display: block; width: 100%; margin: 8px 0; }
 .evidence-section a { color: #7bb6ff; }
 .report-item span:first-child, .data-point strong { overflow-wrap: anywhere; min-width: 0; }
+.instrument-picker { display:grid; grid-template-columns:1fr 1.5fr auto; gap:12px; align-items:end; padding:18px; margin-bottom:18px; border:1px solid #34445d; border-radius:14px; }
+.instrument-picker label { min-width:0; display:grid; gap:8px; }
+.instrument-picker input,.instrument-picker select { width:100%; min-width:0; }
+.instrument-picker p { grid-column:1/-1; margin:0; font-size:12px; line-height:1.6; color:#a8b8ce; }
+@media(max-width:600px){.instrument-picker{grid-template-columns:1fr;}.instrument-picker .button{width:100%;}.price{overflow-wrap:anywhere;}}

@@ -1,18 +1,66 @@
 /* BTC-USDT-SWAP 工作台：只使用 OKX 公開市場 API，不傳送交易指令。 */
 const API = 'https://www.okx.com/api/v5';
-const INSTRUMENT = 'BTC-USDT-SWAP';
+let INSTRUMENT = 'BTC-USDT-SWAP';
 const storageKey = 'btcSwapJournalV1';
 const checklistKey = 'btcSwapChecklistV1';
 const oiSnapshotKey = 'btcSwapOiSeriesV2';
 
 const state = {
-  last: null, mark: null, funding: null, openInterest: null, contractValue: 0.01,
+  last: null, mark: null, funding: null, openInterest: null, contractValue: null,
   candles: [], candles15m: [], candles4h: [], ema20: [], ema50: [], report: null,
-  fundingHistory: [], historyFetchedAt: 0, loading: false, healthy: false
+  fundingHistory: [], historyFetchedAt: 0, loading: false, healthy: false,
+  instruments: [], meta: null, requestId: 0, drafts: {}, base: 'BTC'
 };
 const $ = (id) => document.getElementById(id);
 const number = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
-const money = (value, digits = 2) => value === null || value === undefined || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const money = (value, digits = (Math.abs(Number(value))>0 && Math.abs(Number(value))<10 ? Math.min(12,Math.max(2,Math.ceil(-Math.log10(Math.abs(Number(value))))+4)) : 2)) => value === null || value === undefined || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const quantityText = value => Number(value).toLocaleString('en-US',{maximumFractionDigits:12});
+const journalStorageKey = () => INSTRUMENT==='BTC-USDT-SWAP'?storageKey:`okxJournal:${INSTRUMENT}:v1`;
+const draftFields=['position-side','position-entry','position-size','position-stop','risk-entry','risk-stop','journal-date','journal-side','journal-entry','journal-exit','journal-size','journal-reason','journal-notes'];
+
+function renderInstrumentOptions() {
+  const query=$('instrument-search').value.trim().toUpperCase();
+  const matching=state.instruments.filter(i=>i.instId.includes(query));
+  const selected=state.instruments.find(i=>i.instId===INSTRUMENT);
+  if(selected&&!matching.includes(selected))matching.unshift(selected);
+  $('instrument-select').replaceChildren(...matching.map(i=>new Option(`${i.instId.split('-')[0]} / USDT 永續`,i.instId,false,i.instId===INSTRUMENT)));
+  $('instrument-count').textContent=`${state.instruments.length} 個可用 USDT 永續合約；搜尋符合 ${state.instruments.filter(i=>i.instId.includes(query)).length} 個。`;
+}
+async function loadInstruments() {
+  $('reload-instruments').disabled=true;
+  try {
+    const list=(await getJson('/public/instruments?instType=SWAP')).filter(OkxContracts.valid);
+    if(!list.length)throw new Error('無支援合約');
+    const rank=id=>['BTC-USDT-SWAP','ETH-USDT-SWAP','SOL-USDT-SWAP'].indexOf(id);
+    state.instruments=list.sort((a,b)=>(rank(a.instId)<0?999:rank(a.instId))-(rank(b.instId)<0?999:rank(b.instId))||a.instId.localeCompare(b.instId));
+    renderInstrumentOptions();$('instrument-select').disabled=false;
+    if(!list.some(i=>i.instId===INSTRUMENT)) {
+      $('instrument-select').prepend(new Option(`${INSTRUMENT}（目前不可用）`,INSTRUMENT,true,true));
+      state.meta=null;invalidateReport('目前合約不在可用清單，請選擇其他幣種。');
+    }
+  } catch { $('instrument-count').textContent='無法更新合約清單，請按「重載清單」重試。'; }
+  finally {$('reload-instruments').disabled=false;}
+}
+function updateInstrumentLabels() {
+  state.base=INSTRUMENT.split('-')[0];
+  $('instrument-name').textContent=INSTRUMENT;document.title=`${state.base}｜OKX 合約工作台`;
+  $('price-chart').setAttribute('aria-label',`${INSTRUMENT} 1 小時價格走勢圖`);
+  document.querySelectorAll('[data-base]').forEach(el=>el.textContent=state.base);
+  document.querySelectorAll('[data-instrument]').forEach(el=>el.textContent=INSTRUMENT);
+}
+function switchInstrument(next) {
+  if(next===INSTRUMENT || !state.instruments.some(i=>i.instId===next))return;
+  state.drafts[INSTRUMENT]=Object.fromEntries(draftFields.map(id=>[id,$(id).value]));
+  INSTRUMENT=next;state.requestId++;state.loading=false;state.meta=null;
+  Object.assign(state,{last:null,mark:null,funding:null,ticker:null,openInterest:null,contractValue:null,candles:[],candles15m:[],candles4h:[],ema20:[],ema50:[],fundingHistory:[],historyFetchedAt:0});
+  invalidateReport(`切換至 ${next}，等待新資料。`);updateInstrumentLabels();
+  for(const id of ['last-price','change-24h','mark-price','funding-rate','rsi-value','rsi-state','atr-value','contract-size','last-updated','next-funding','report-time'])setText(id,'—');
+  for(const id of draftFields)$(id).value=state.drafts[next]?.[id]??(id.endsWith('-side')?'long':id==='journal-date'?taipeiDate():'');
+  $('risk-results').textContent='已切換合約，請重新計算倉位。';$('position-results').textContent='等待此合約的最新行情。';
+  document.querySelectorAll('[data-check]').forEach(el=>el.checked=false);renderChecklist();renderJournal();
+  const canvas=$('price-chart');canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+  loadMarket();
+}
 const fundingPercent = value => `${money(value * 100, 5)}%`;
 const signed = (value, suffix = '') => `${value >= 0 ? '+' : ''}${money(value)}${suffix}`;
 const taipeiDate = (date = new Date()) => {
@@ -92,11 +140,12 @@ function updateOpenInterest(data) {
   const current = { oi: Number(data.oi), oiCcy: Number(data.oiCcy), oiUsd: Number(data.oiUsd), ts: Number(data.ts) };
   try {
     if (!(current.oiCcy > 0) || !Number.isFinite(current.ts) || Math.abs(Date.now()-current.ts)>90000) return null;
-    const saved = JSON.parse(localStorage.getItem(oiSnapshotKey) || '[]');
+    const key=`${oiSnapshotKey}:${INSTRUMENT}`;
+    const saved = JSON.parse(localStorage.getItem(key) || '[]');
     const series = (Array.isArray(saved)?saved:[]).filter(p=>p.ts>current.ts-86400000 && p.ts<=current.ts);
     Object.assign(current, BtcEvidence.oiChange(series,current));
     if (!series.length || current.ts-series.at(-1).ts>=60000) series.push(current);
-    localStorage.setItem(oiSnapshotKey, JSON.stringify(series));
+    localStorage.setItem(key, JSON.stringify(series));
   } catch { /* OI is optional data; a blocked local store must not break analysis. */ }
   return current;
 }
@@ -159,14 +208,14 @@ function calculateDirectionReport() {
     subtitle=`${bias==='long'?'趨勢偏多':bias==='short'?'趨勢偏空':'多週期尚未形成可用方向'}。${blocked.length?'未通過：'+blocked.map(g=>g.label).join('；'):'等待方向一致'}。`;
   }
   const activeRules = bias === 'long' ? longRules : bias === 'short' ? shortRules : (longScore >= shortScore ? longRules : shortRules);
-  return { direction,bias,status,subtitle,score,longScore,shortScore,rules:activeRules,gates,h4,h1,m15,plan,candidate,fundingPosition,fundingRate,spreadBps,stale,liquidityIssue,oi:state.openInterest,createdAt:Date.now(),last:state.last,mark:state.mark,ticker:{...state.ticker},costPercent,support:levels.filter(x=>x<state.last).at(-1),resistance:levels.find(x=>x>state.last) };
+  return { instrument:INSTRUMENT,base:state.base, direction,bias,status,subtitle,score,longScore,shortScore,rules:activeRules,gates,h4,h1,m15,plan,candidate,fundingPosition,fundingRate,spreadBps,stale,liquidityIssue,oi:state.openInterest,createdAt:Date.now(),last:state.last,mark:state.mark,ticker:{...state.ticker},costPercent,support:levels.filter(x=>x<state.last).at(-1),resistance:levels.find(x=>x>state.last) };
 }
 
 
 function reportText(report) {
   const directionText = report.direction === 'long' ? '偏多（等待回踩確認）' : report.direction === 'short' ? '偏空（等待反彈確認）' : '不交易／等待';
   const lines = [
-    `BTC-USDT-SWAP｜evidence-v3（未回測驗證）｜評估時間 ${new Date(report.createdAt).toLocaleString('zh-TW')}`,
+    `${report.instrument}｜multi-v4（未回測驗證）｜評估時間 ${new Date(report.createdAt).toLocaleString('zh-TW')}`,
     '', `決策：${directionText}`, `規則符合度：${report.score}/100（不是勝率）`, `多方分數：${report.longScore}/100｜空方分數：${report.shortScore}/100`, `說明：${report.subtitle}`, '', '使用數據：',
     `現價：${money(report.last)}｜標記價：${money(report.mark)}｜24H：${signed(report.ticker.change, '%')}｜行情時間：${new Date(report.ticker.ts).toISOString()}`,
     `4H EMA20/EMA50：${money(report.h4.ema20)} / ${money(report.h4.ema50)}｜RSI：${money(report.h4.rsi)}`,
@@ -177,7 +226,7 @@ function reportText(report) {
     `K 線開盤時間（均已收盤）4H / 1H / 15m：${[report.h4,report.h1,report.m15].map(t=>new Date(t.lastCandleTime).toISOString()).join(' / ')}`,
     `OI 約一小時變化：${Number.isFinite(report.oi?.changePct)?signed(report.oi.changePct,'%')+'／間隔 '+money(report.oi.minutes,1)+' 分鐘':'尚無對照資料；需累積約一小時，非多空比'}`,
     `費率歷史樣本期間：${report.fundingPosition?new Date(report.fundingPosition.from).toISOString()+' 至 '+new Date(report.fundingPosition.to).toISOString():'無有效同週期樣本'}`,
-    `未平倉量：${report.oi ? `${money(report.oi.oiCcy, 2)} BTC（僅快照，不單獨判定方向）` : '資料未提供'}`,
+    `未平倉量：${report.oi ? `${quantityText(report.oi.oiCcy)} ${report.base}（僅快照，不單獨判定方向）` : '資料未提供'}`,
     '', '判定條件：', ...report.rules.map(rule => `- [${rule.pass ? '通過' : '未通過'}] ${rule.label}`)
   ];
   lines.push('', '交易品質篩選：',...report.gates.map(g=>`- [${g.pass?'通過':'未通過'}] ${g.label}`));
@@ -209,7 +258,7 @@ function renderTradeReport() {
   } else {
     $('report-plan').textContent = '目前不建立多／空單計畫。先等待上方品質篩選與多週期方向一致，再人工確認 15m 進場觸發。';
   }
-  const oiText = report.oi ? `${money(report.oi.oiCcy, 2)} BTC${Number.isFinite(report.oi.changePct) ? `｜${money(report.oi.minutes,1)} 分鐘變化 ${signed(report.oi.changePct, '%')}` : '｜需累積約 1 小時對照'}` : '未提供';
+  const oiText = report.oi ? `${quantityText(report.oi.oiCcy)} ${report.base}${Number.isFinite(report.oi.changePct) ? `｜${money(report.oi.minutes,1)} 分鐘變化 ${signed(report.oi.changePct, '%')}` : '｜需累積約 1 小時對照'}` : '未提供';
   const data = [
     ['現價／標記價', `${money(report.last)}／${money(report.mark)}`], ['24H 漲跌', signed(report.ticker.change, '%')], ['資金費率（預估）', fundingPercent(report.fundingRate)],
     ['4H EMA20／50', `${money(report.h4.ema20)}／${money(report.h4.ema50)}`], ['4H RSI', money(report.h4.rsi)], ['1H EMA20／50', `${money(report.h1.ema20)}／${money(report.h1.ema50)}`],
@@ -218,7 +267,7 @@ function renderTradeReport() {
     ['1H ADX(14)',money(report.h1.adx)],['最近支撐／壓力',`${money(report.support)}／${money(report.resistance)}`],
     ['費率歷史位置',report.fundingPosition?`第 ${money(report.fundingPosition.percentile,1)} 百分位／${report.fundingPosition.count} 筆・${report.fundingPosition.hours}h 結算`:'資料不足'],
     ['結構目標扣費後 R:R',report.candidate?money(report.candidate.rr):'尚無方向'],['來回費用＋滑價假設',`${report.costPercent}%（不含資金費）`],
-    ['分析版本','evidence-v3・尚未回測驗證']
+    ['分析版本','multi-v4・尚未回測驗證']
   ];
   $('report-data').innerHTML = data.map(([label, value]) => `<div class="data-point"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
 }
@@ -233,7 +282,7 @@ async function copyTradeReport() {
 function downloadTradeReport() {
   if (!state.report) return;
   const file = new Blob(['\uFEFF', reportText(state.report)], { type: 'text/plain;charset=utf-8' });
-  const link = document.createElement('a'); link.href = URL.createObjectURL(file); link.download = `btc-swap-report-${taipeiDate()}.txt`; link.click(); URL.revokeObjectURL(link.href);
+  const link = document.createElement('a'); link.href = URL.createObjectURL(file); link.download = `${state.report.instrument}-report-${taipeiDate()}.txt`; link.click(); URL.revokeObjectURL(link.href);
 }
 
 function setText(id, value, className = '') { const element = $(id); element.textContent = value; element.classList.remove('positive','negative','neutral'); if(className) element.classList.add(className); }
@@ -253,16 +302,16 @@ function drawChart() {
   canvas.width = Math.max(1, Math.floor(rect.width * scale));
   canvas.height = Math.max(1, Math.floor(rect.height * scale));
   const ctx = canvas.getContext('2d'); ctx.scale(scale, scale);
-  const width = rect.width, height = rect.height, padding = { left: 6, right: 52, top: 14, bottom: 16 };
+  const width = rect.width, height = rect.height, padding = { left: 6, right: 92, top: 14, bottom: 16 };
   const values = state.candles.map(c => c.close);
   if (!values.length || !width) return;
   const points = [...values, ...state.ema20, ...state.ema50];
-  const min = Math.min(...points), max = Math.max(...points), range = Math.max(max - min, 1);
+  const min = Math.min(...points), max = Math.max(...points), range = Math.max(max - min, Math.abs(max)*.000001, 1e-12);
   const x = index => padding.left + index / (values.length - 1) * (width - padding.left - padding.right);
   const y = value => padding.top + (max - value) / range * (height - padding.top - padding.bottom);
   ctx.clearRect(0, 0, width, height);
   ctx.strokeStyle = 'rgba(167,190,224,.12)'; ctx.lineWidth = 1;
-  for (let i = 0; i < 4; i++) { const lineY = padding.top + i / 3 * (height - padding.top - padding.bottom); ctx.beginPath(); ctx.moveTo(padding.left, lineY); ctx.lineTo(width - padding.right, lineY); ctx.stroke(); ctx.fillStyle = '#8094b2'; ctx.font = '11px system-ui'; ctx.fillText(number.format(max - i / 3 * range), width - padding.right + 7, lineY + 4); }
+  for (let i = 0; i < 4; i++) { const lineY = padding.top + i / 3 * (height - padding.top - padding.bottom); ctx.beginPath(); ctx.moveTo(padding.left, lineY); ctx.lineTo(width - padding.right, lineY); ctx.stroke(); ctx.fillStyle = '#8094b2'; ctx.font = '11px system-ui'; ctx.fillText(money(max - i / 3 * range), width - padding.right + 7, lineY + 4); }
   const line = (data, color, lineWidth) => { ctx.strokeStyle = color; ctx.lineWidth = lineWidth; ctx.beginPath(); data.forEach((value, index) => index ? ctx.lineTo(x(index), y(value)) : ctx.moveTo(x(index), y(value))); ctx.stroke(); };
   line(values, '#62a7ff', 2.1); line(state.ema20, '#39ddc1', 1.3); line(state.ema50, '#f8c76d', 1.3);
 }
@@ -274,16 +323,19 @@ function renderMarket(ticker, mark, funding, instrument) {
   state.mark = Number(mark.markPx); state.markTs=Number(mark.ts);
   state.funding = { rate: funding.fundingRate===''?NaN:Number(funding.fundingRate), ts:Number(funding.ts), nextFundingTime: Number(funding.nextFundingTime), fundingTime: Number(funding.fundingTime) };
   state.ticker = { bid: Number(ticker.bidPx), ask: Number(ticker.askPx), ts: Number(ticker.ts), change };
-  state.contractValue = Number(instrument.ctVal) || .01;
+  state.meta=instrument;state.contractValue = Number(instrument.ctVal);
+  for(const id of ['risk-entry','risk-stop','position-entry','position-stop','journal-entry','journal-exit'])$(id).step=instrument.tickSz;
+  for(const id of ['position-size','journal-size'])$(id).step='any';
+  if(Number(instrument.lever)>0){$('risk-leverage').max=instrument.lever;$('risk-leverage').value=Math.min(Number($('risk-leverage').value),Number(instrument.lever));}
   setText('last-price', `$${money(last)}`);
   setText('change-24h', signed(change, '%'), change >= 0 ? 'positive' : 'negative');
   setText('mark-price', `$${money(state.mark)}`);
   const rate = state.funding.rate * 100;
   setText('funding-rate', fundingPercent(state.funding.rate), rate > 0 ? 'negative' : rate < 0 ? 'positive' : 'neutral');
   $('next-funding').textContent = `下一次結算：${new Date(Number(funding.fundingTime)).toLocaleString('zh-TW', { hour: '2-digit', minute: '2-digit', month: 'numeric', day: 'numeric' })}`;
-  $('contract-size').textContent = `合約面值：${state.contractValue} BTC / 張`;
+  $('contract-size').textContent = `每張 ${state.contractValue} ${state.base}｜最小 ${instrument.minSz} 張｜步長 ${instrument.lotSz}`;
   $('last-updated').textContent = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  if (!$('risk-entry').value) $('risk-entry').value = last.toFixed(1);
+  if (!$('risk-entry').value) $('risk-entry').value = ticker.last;
   updatePosition();
 }
 
@@ -298,34 +350,41 @@ function renderCandles(data) {
 
 async function loadMarket() {
   if(state.loading) return;
+  const requestId=++state.requestId, instrument=INSTRUMENT;
   state.loading=true;
   setConnection('', '更新市場資料中');
   try {
     const [tickerData, markData, fundingData, candleData, candle15mData, candle4hData, instrumentData, openInterestData, history] = await Promise.all([
-      getJson(`/market/ticker?instId=${INSTRUMENT}`),
-      getJson(`/public/mark-price?instType=SWAP&instId=${INSTRUMENT}`),
-      getJson(`/public/funding-rate?instId=${INSTRUMENT}`),
-      getJson(`/market/candles?instId=${INSTRUMENT}&bar=1H&limit=200`),
-      getJson(`/market/candles?instId=${INSTRUMENT}&bar=15m&limit=200`),
-      getJson(`/market/candles?instId=${INSTRUMENT}&bar=4H&limit=200`),
-      getJson(`/public/instruments?instType=SWAP&instId=${INSTRUMENT}`),
-      getJson(`/public/open-interest?instType=SWAP&instId=${INSTRUMENT}`).catch(() => []),
-      Date.now()-state.historyFetchedAt<300000 ? Promise.resolve(null) : getJson(`/public/funding-rate-history?instId=${INSTRUMENT}&limit=100`).catch(()=>[])
+      getJson(`/market/ticker?instId=${instrument}`),
+      getJson(`/public/mark-price?instType=SWAP&instId=${instrument}`),
+      getJson(`/public/funding-rate?instId=${instrument}`),
+      getJson(`/market/candles?instId=${instrument}&bar=1H&limit=200`),
+      getJson(`/market/candles?instId=${instrument}&bar=15m&limit=200`),
+      getJson(`/market/candles?instId=${instrument}&bar=4H&limit=200`),
+      getJson(`/public/instruments?instType=SWAP&instId=${instrument}`),
+      getJson(`/public/open-interest?instType=SWAP&instId=${instrument}`).catch(() => []),
+      Date.now()-state.historyFetchedAt<300000 ? Promise.resolve(null) : getJson(`/public/funding-rate-history?instId=${instrument}&limit=100`).catch(()=>[])
     ]);
+    if(requestId!==state.requestId || instrument!==INSTRUMENT)return;
+    if(!OkxContracts.valid(instrumentData[0]) || instrumentData[0].instId!==instrument || [tickerData[0],markData[0],fundingData[0]].some(row=>row?.instId!==instrument))throw new Error('合約資料不符或已停止交易');
     if (![tickerData[0]?.last,markData[0]?.markPx,tickerData[0]?.bidPx,tickerData[0]?.askPx].every(v=>Number.isFinite(Number(v))&&Number(v)>0)) throw new Error('必要價格資料缺失');
+    if(openInterestData[0]?.instId!==instrument)openInterestData.length=0;
+    if(history?.some(row=>row.instId!==instrument))history.length=0;
     if (history!==null) { state.fundingHistory=history; state.historyFetchedAt=history.length?Date.now():0; }
     renderMarket(tickerData[0], markData[0], fundingData[0], instrumentData[0]);
     renderCandles(candleData); state.candles15m = parseCandles(candle15mData); state.candles4h = parseCandles(candle4hData);
     state.openInterest = updateOpenInterest(openInterestData[0]); state.healthy=true; renderTradeReport();
     setConnection(state.report&&!state.report.stale?'online':'offline',state.report&&!state.report.stale?'OKX 公開資料已連線':'資料過期／不完整，停止給單');
   } catch (error) {
+    if(requestId!==state.requestId)return;
+    state.meta=null;
     console.error(error); setConnection('offline', '無法取得 OKX 資料'); invalidateReport('更新失敗，已撤下舊方案；請恢復連線後重試。');
-  } finally {state.loading=false;}
+  } finally {if(requestId===state.requestId)state.loading=false;}
 }
 
 function updatePosition() {
   const side = $('position-side').value, entry = Number($('position-entry').value), size = Number($('position-size').value), stop = Number($('position-stop').value), current = state.last;
-  if (!(entry > 0 && size > 0 && stop > 0 && current > 0)) { $('position-results').innerHTML = '<p>輸入計畫中的持倉，便可估算目前盈虧與止損風險。</p>'; return; }
+  if (!(entry > 0 && size > 0 && stop > 0 && current > 0) || !state.ticker || Date.now()-state.ticker.ts>90000) { $('position-results').innerHTML = '<p>請輸入此幣種的持倉資料，並等待有效行情。</p>'; return; }
   const sign = side === 'long' ? 1 : -1, pnl = (current - entry) * size * sign, risk = (stop - entry) * size * sign;
   const stopValid = risk < 0;
   $('position-results').innerHTML = [
@@ -340,31 +399,30 @@ function calculateRisk(event) {
   event.preventDefault();
   const equity = Number($('account-equity').value), riskPercent = Number($('risk-percent').value), entry = Number($('risk-entry').value), stop = Number($('risk-stop').value), leverage = Number($('risk-leverage').value), feePercent = Number($('fee-buffer').value);
   const distance = Math.abs(entry - stop);
-  if (!(equity > 0 && riskPercent > 0 && entry > 0 && stop > 0 && distance > 0 && leverage > 0)) return;
+  if (!(equity > 0 && riskPercent > 0 && entry > 0 && stop > 0 && distance > 0 && leverage > 0 && feePercent>=0) || !OkxContracts.valid(state.meta) || state.meta.instId!==INSTRUMENT) { $('risk-results').textContent='請等待有效合約規格，並確認輸入數值。';return; }
   const rawRisk = equity * riskPercent / 100;
-  const feePerBtc = entry * feePercent / 100;
-  const quantity = rawRisk / (distance + feePerBtc);
-  const contracts = Math.floor(quantity / state.contractValue);
-  const roundedQuantity = contracts * state.contractValue;
-  const notional = roundedQuantity * entry, margin = notional / leverage, actualRisk = roundedQuantity * (distance + feePerBtc);
+  const sizing=OkxContracts.size(rawRisk,entry,stop,feePercent,state.meta);
+  if(!sizing){$('risk-results').textContent=`此風險預算不足以符合 ${INSTRUMENT} 最小 ${state.meta.minSz} 張；不建議加大風險以湊單。`;return;}
+  const contracts=sizing.contracts,roundedQuantity=sizing.quantity;
+  const notional = roundedQuantity * entry, margin = notional / leverage;
   $('risk-results').innerHTML = `<div class="result-grid">
     <div><span>風險上限</span><strong>$${money(rawRisk)}</strong></div>
     <div><span>進場到止損距離</span><strong>$${money(distance)}</strong></div>
-    <div><span>建議數量</span><strong>${roundedQuantity.toFixed(4)} BTC</strong></div>
-    <div><span>估計張數</span><strong>${contracts.toLocaleString()} 張</strong></div>
+    <div><span>${INSTRUMENT} 數量</span><strong>${quantityText(roundedQuantity)} ${state.base}</strong></div>
+    <div><span>向下取整張數</span><strong>${quantityText(contracts)} 張</strong></div>
     <div><span>名目價值</span><strong>$${money(notional)}</strong></div>
     <div><span>${leverage}× 下估計保證金</span><strong>$${money(margin)}</strong></div>
-    <p class="result-note">以每張 ${state.contractValue} BTC、費用／滑價緩衝 ${feePercent}% 估算。實際可下單張數、保證金、維持保證金與強平價由 OKX 帳戶模式及市場狀況決定；送單前務必在 OKX 確認。</p>
+    <p class="result-note">每張 ${state.contractValue} ${state.base}；最小 ${state.meta.minSz} 張、步長 ${state.meta.lotSz} 張；費用／滑價緩衝 ${feePercent}%。${margin>equity?'估計保證金高於帳戶權益，請縮小倉位。':''} 實際保證金、強平價及帳戶可用合約須在 OKX 確認。</p>
   </div>`;
-  $('position-entry').value = entry; $('position-stop').value = stop; $('position-size').value = roundedQuantity.toFixed(4); updatePosition();
+  $('position-entry').value = entry; $('position-stop').value = stop; $('position-size').value = Number(roundedQuantity.toPrecision(12)); updatePosition();
 }
 
-function journal() { try { return JSON.parse(localStorage.getItem(storageKey)) || []; } catch { return []; } }
-function saveJournal(entries) { localStorage.setItem(storageKey, JSON.stringify(entries)); }
+function journal() { try { const rows=JSON.parse(localStorage.getItem(journalStorageKey()));return Array.isArray(rows)?rows:[]; } catch { return []; } }
+function saveJournal(entries) { localStorage.setItem(journalStorageKey(), JSON.stringify(entries)); }
 function renderJournal() {
   const entries = journal(), body = $('journal-rows');
   if (!entries.length) body.innerHTML = '<tr><td colspan="6" class="empty-row">尚無紀錄</td></tr>';
-  else body.innerHTML = entries.map(entry => `<tr><td>${entry.date}</td><td class="${entry.side === 'long' ? 'positive' : 'negative'}">${entry.side === 'long' ? '多' : '空'}</td><td>${money(entry.entry)} / ${money(entry.exit)}</td><td>${entry.size.toFixed(4)}</td><td class="${entry.pnl >= 0 ? 'positive' : 'negative'}">${signed(entry.pnl)}</td><td><button class="icon-button" data-delete="${entry.id}" title="刪除">刪除</button></td></tr>`).join('');
+  else body.innerHTML = entries.map(entry => `<tr><td>${entry.date}</td><td class="${entry.side === 'long' ? 'positive' : 'negative'}">${entry.side === 'long' ? '多' : '空'}</td><td>${money(entry.entry)} / ${money(entry.exit)}</td><td>${quantityText(entry.size)}</td><td class="${entry.pnl >= 0 ? 'positive' : 'negative'}">${signed(entry.pnl)}</td><td><button class="icon-button" data-delete="${entry.id}" title="刪除">刪除</button></td></tr>`).join('');
   const total = entries.reduce((sum, entry) => sum + entry.pnl, 0), wins = entries.filter(entry => entry.pnl > 0), losses = entries.filter(entry => entry.pnl < 0), grossWin = wins.reduce((sum, entry) => sum + entry.pnl, 0), grossLoss = Math.abs(losses.reduce((sum, entry) => sum + entry.pnl, 0));
   const profitFactor = grossLoss ? grossWin / grossLoss : wins.length ? Infinity : 0;
   $('journal-stats').innerHTML = [['交易筆數', entries.length], ['勝率', entries.length ? `${money(wins.length / entries.length * 100)}%` : '--'], ['估計總盈虧', signed(total, ' USDT')], ['獲利因子', profitFactor === Infinity ? '∞' : money(profitFactor)]].map(([label, value], i) => `<div><span>${label}</span><strong class="${i === 2 ? (total >= 0 ? 'positive' : 'negative') : ''}">${value}</strong></div>`).join('');
@@ -374,16 +432,16 @@ function addJournalEntry(event) {
   event.preventDefault();
   const side = $('journal-side').value, entry = Number($('journal-entry').value), exit = Number($('journal-exit').value), size = Number($('journal-size').value);
   if (!(entry > 0 && exit > 0 && size > 0)) return;
-  const record = { id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), date: $('journal-date').value, side, entry, exit, size, reason: $('journal-reason').value.trim(), notes: $('journal-notes').value.trim(), pnl: (exit - entry) * size * (side === 'long' ? 1 : -1) };
+  const record = { instrument:INSTRUMENT, base:state.base, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), date: $('journal-date').value, side, entry, exit, size, reason: $('journal-reason').value.trim(), notes: $('journal-notes').value.trim(), pnl: (exit - entry) * size * (side === 'long' ? 1 : -1) };
   const entries = journal(); entries.unshift(record); saveJournal(entries); event.target.reset(); $('journal-date').value = taipeiDate(); renderJournal();
 }
 
 function exportJournal() {
   const entries = journal(); if (!entries.length) { alert('目前沒有可匯出的交易紀錄。'); return; }
-  const headers = ['date', 'side', 'entry', 'exit', 'size_btc', 'estimated_pnl_usdt', 'reason', 'notes'];
+  const headers = ['instrument','quantity_currency','date', 'side', 'entry', 'exit', 'quantity', 'estimated_pnl_usdt', 'reason', 'notes'];
   const quote = value => `"${String(value ?? '').replaceAll('"', '""')}"`;
-  const content = '\uFEFF' + [headers.join(','), ...entries.map(row => headers.map(header => quote(row[header === 'size_btc' ? 'size' : header === 'estimated_pnl_usdt' ? 'pnl' : header])).join(','))].join('\n');
-  const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' })); link.download = `btc-swap-journal-${taipeiDate()}.csv`; link.click(); URL.revokeObjectURL(link.href);
+  const content = '\uFEFF' + [headers.join(','), ...entries.map(row => headers.map(header => quote(header==='instrument'?INSTRUMENT:header==='quantity_currency'?state.base:row[header === 'quantity' ? 'size' : header === 'estimated_pnl_usdt' ? 'pnl' : header])).join(','))].join('\n');
+  const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' })); link.download = `${INSTRUMENT}-journal-${taipeiDate()}.csv`; link.click(); URL.revokeObjectURL(link.href);
 }
 
 function setupChecklist() {
@@ -397,7 +455,11 @@ function init() {
   setupTabs(); setupChecklist(); renderJournal();
   $('refresh-market').addEventListener('click', loadMarket); $('copy-report').addEventListener('click', copyTradeReport); $('download-report').addEventListener('click', downloadTradeReport); $('position-form').addEventListener('submit', event => { event.preventDefault(); updatePosition(); }); ['position-side', 'position-entry', 'position-size', 'position-stop'].forEach(id => $(id).addEventListener('input', updatePosition));
   $('risk-form').addEventListener('submit', calculateRisk); $('journal-form').addEventListener('submit', addJournalEntry); $('export-journal').addEventListener('click', exportJournal); $('journal-rows').addEventListener('click', event => { const id = event.target.dataset.delete; if (id) { saveJournal(journal().filter(item => item.id !== id)); renderJournal(); } });
-  window.addEventListener('resize', drawChart); loadMarket(); setInterval(loadMarket, 30000);
+  updateInstrumentLabels();
+  $('instrument-select').addEventListener('change',event=>switchInstrument(event.target.value));
+  $('instrument-search').addEventListener('input',renderInstrumentOptions);
+  $('reload-instruments').addEventListener('click',loadInstruments);
+  window.addEventListener('resize', drawChart); loadInstruments();loadMarket(); setInterval(loadMarket, 30000);
   $('analysis-cost').addEventListener('input',()=>{if(state.healthy)renderTradeReport();});
   setInterval(()=>{if(state.report && (Date.now()-state.report.createdAt>90000 || Date.now()-state.ticker.ts>90000)) {invalidateReport('報告超過 90 秒有效期限，等待更新。');setConnection('offline','報告已過期');}},1000);
   window.addEventListener('offline',()=>{invalidateReport('裝置離線，已撤下方案。');setConnection('offline','裝置離線');});
