@@ -26,7 +26,7 @@
           <div>
             <div class="instrument-row">
               <span class="instrument">BTC-USDT-SWAP</span>
-              <span class="pill">1H 分析</span>
+              <span class="pill">多週期分析 · v3</span>
             </div>
             <p class="price" id="last-price">--</p>
             <p class="price-sub"><span id="change-24h">--</span> · 24 小時變動</p>
@@ -75,7 +75,7 @@
 
             <article class="card signal-card">
               <div class="card-heading">
-                <div><p class="eyebrow">規則型提示，不是保證</p><h2>1H 結構訊號</h2></div>
+                <div><p class="eyebrow">規則符合度，不是勝率</p><h2>多週期決策摘要</h2></div>
                 <span class="score" id="signal-score">--</span>
               </div>
               <p class="signal-bias" id="signal-bias">等待資料</p>
@@ -104,6 +104,14 @@
               </div>
               <p class="report-time">資料時間：<span id="report-time">--</span></p>
             </div>
+            <section class="report-section evidence-section">
+              <h3>交易品質篩選 · evidence-v3</h3>
+              <p>用來排除條件不足的交易，尚未經回測證明可提高勝率。ADX ≥ 20、量能 ≥ 1.20×、費率極端 10% 與扣費後 R:R ≥ 2 都是待驗證的規則門檻。</p>
+              <label>分析用來回手續費＋滑價緩衝 (%)<input id="analysis-cost" type="number" min="0" max="5" step="0.01" value="0.12" inputmode="decimal" /></label>
+              <p>0.12% 僅為可調假設，不是 OKX 帳戶實際費率；不含持倉資金費。風控計算頁的費用假設需另外確認。</p>
+              <div class="report-list" id="evidence-gates">等待公開市場數據。</div>
+              <p>支撐／壓力來自 1H、4H 各最近約 200 根 K 的左右各兩根確認轉折；新高／新低若無可用目標則等待。OI 不代表多空比；費率百分位不是價格反轉機率。重大新聞仍需人工檢查。<a href="https://www.okx.com/docs-v5/en/" target="_blank" rel="noopener">OKX 公開 API 說明</a></p>
+            </section>
             <div class="report-grid">
               <section class="report-section">
                 <h3>結論依據</h3>
@@ -190,6 +198,7 @@
 
       <footer>此工具提供教育與風險管理輔助，不構成投資建議，也不保證獲利。市場資料來源：OKX 公開 API。</footer>
     </div>
+    <script src="evidence.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

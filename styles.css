@@ -54,3 +54,10 @@ h2 { font-size: 1.15rem; letter-spacing: -0.02em; }
 footer { margin-top: 31px; color: #6f84a3; font-size: .72rem; text-align: center; line-height: 1.5; }
 @media (max-width: 820px) { .app-shell { width: min(100% - 22px, 680px); padding-top: 20px; }.metric-grid { grid-template-columns: repeat(2, 1fr); }.two-column, .lower-grid, .risk-layout, .journal-layout, .report-grid { grid-template-columns: 1fr; }.topbar { align-items: flex-start; }.hero-panel { padding: 21px; }.chart-card { min-height: 345px; } }
 @media (max-width: 520px) { .topbar, .hero-panel, .page-intro, .journal-heading, .report-summary { display: block; }.connection { margin-top: 12px; }.hero-actions { text-align: left; margin-top: 18px; display: flex; justify-content: space-between; align-items: center; }.updated { margin: 0; }.metric-grid, .form-grid, .result-grid, .journal-stats, .report-data { grid-template-columns: 1fr; }.card { padding: 17px; }.chart-card canvas { height: 220px; }.signal-bias { margin-top: 20px; }.tabs { margin-top: 20px; }.page-intro > p { margin-top: 12px; }.journal-heading .button { margin-top: 14px; }.result-note { grid-column: auto; }.report-actions { margin-top: 13px; justify-content: start; }.report-time { margin-top: 11px; }.report-item { align-items: flex-start; }.report-item span:last-child { white-space: normal; text-align: right; } }
+/* Evidence panel remains readable on phones. */
+.evidence-section { margin: 20px 0; padding: 18px; border: 1px solid #34445d; border-radius: 14px; }
+.evidence-section p { color: #a8b8ce; font-size: 13px; line-height: 1.7; }
+.evidence-section label { display: block; max-width: 380px; }
+.evidence-section input { display: block; width: 100%; margin: 8px 0; }
+.evidence-section a { color: #7bb6ff; }
+.report-item span:first-child, .data-point strong { overflow-wrap: anywhere; min-width: 0; }
