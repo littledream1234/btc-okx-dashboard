@@ -23,10 +23,10 @@
 
       <main>
         <section class="instrument-picker" aria-label="選擇 OKX 永續合約">
-          <label>搜尋幣種<input id="instrument-search" type="search" placeholder="例如 ETH、SOL、DOGE" autocomplete="off" /></label>
-          <label>USDT 永續合約<select id="instrument-select" disabled><option value="BTC-USDT-SWAP">BTC / USDT 永續</option></select></label>
+          <h2>USDT 永續合約清單</h2>
           <button class="button secondary" id="reload-instruments" type="button">重載清單</button>
           <p id="instrument-count" aria-live="polite">正在取得 OKX 合約清單…</p>
+          <div id="instrument-list" class="instrument-list" role="group" aria-label="點選合約幣種"><p>載入清單中…</p></div>
           <p class="picker-note">只列出公開 API 回傳的正常交易 USDT 線性永續合約，不含現貨、幣本位、交割或盤前合約。實際可交易項目以你的 OKX 帳戶為準；新幣資料不足時不給方案。切換會保留本頁各幣種的未儲存表單，重新整理後草稿不保留。</p>
         </section>
         <section class="hero-panel">

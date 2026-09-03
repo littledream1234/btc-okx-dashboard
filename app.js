@@ -19,12 +19,13 @@ const journalStorageKey = () => INSTRUMENT==='BTC-USDT-SWAP'?storageKey:`okxJour
 const draftFields=['position-side','position-entry','position-size','position-stop','risk-entry','risk-stop','journal-date','journal-side','journal-entry','journal-exit','journal-size','journal-reason','journal-notes'];
 
 function renderInstrumentOptions() {
-  const query=$('instrument-search').value.trim().toUpperCase();
-  const matching=state.instruments.filter(i=>i.instId.includes(query));
-  const selected=state.instruments.find(i=>i.instId===INSTRUMENT);
-  if(selected&&!matching.includes(selected))matching.unshift(selected);
-  $('instrument-select').replaceChildren(...matching.map(i=>new Option(`${i.instId.split('-')[0]} / USDT 永續`,i.instId,false,i.instId===INSTRUMENT)));
-  $('instrument-count').textContent=`${state.instruments.length} 個可用 USDT 永續合約；搜尋符合 ${state.instruments.filter(i=>i.instId.includes(query)).length} 個。`;
+  $('instrument-list').replaceChildren(...state.instruments.map(i=>{
+    const button=document.createElement('button');button.type='button';button.className='instrument-option';
+    button.dataset.symbol=i.instId;button.textContent=i.instId.split('-')[0];button.title=i.instId;
+    button.setAttribute('aria-label',`${i.instId} 永續合約`);
+    button.setAttribute('aria-pressed',String(i.instId===INSTRUMENT));return button;
+  }));
+  $('instrument-count').textContent=`共 ${state.instruments.length} 個 USDT 永續合約。直接點選，下方清單可上下捲動；BTC、ETH、SOL 置頂，其餘依名稱排序。`;
 }
 async function loadInstruments() {
   $('reload-instruments').disabled=true;
@@ -33,9 +34,9 @@ async function loadInstruments() {
     if(!list.length)throw new Error('無支援合約');
     const rank=id=>['BTC-USDT-SWAP','ETH-USDT-SWAP','SOL-USDT-SWAP'].indexOf(id);
     state.instruments=list.sort((a,b)=>(rank(a.instId)<0?999:rank(a.instId))-(rank(b.instId)<0?999:rank(b.instId))||a.instId.localeCompare(b.instId));
-    renderInstrumentOptions();$('instrument-select').disabled=false;
+    renderInstrumentOptions();
     if(!list.some(i=>i.instId===INSTRUMENT)) {
-      $('instrument-select').prepend(new Option(`${INSTRUMENT}（目前不可用）`,INSTRUMENT,true,true));
+      $('instrument-count').textContent+=` 目前 ${INSTRUMENT} 已不在可用清單。`;
       state.meta=null;invalidateReport('目前合約不在可用清單，請選擇其他幣種。');
     }
   } catch { $('instrument-count').textContent='無法更新合約清單，請按「重載清單」重試。'; }
@@ -52,6 +53,7 @@ function switchInstrument(next) {
   if(next===INSTRUMENT || !state.instruments.some(i=>i.instId===next))return;
   state.drafts[INSTRUMENT]=Object.fromEntries(draftFields.map(id=>[id,$(id).value]));
   INSTRUMENT=next;state.requestId++;state.loading=false;state.meta=null;
+  document.querySelectorAll('#instrument-list [data-symbol]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.symbol===next)));
   Object.assign(state,{last:null,mark:null,funding:null,ticker:null,openInterest:null,contractValue:null,candles:[],candles15m:[],candles4h:[],ema20:[],ema50:[],fundingHistory:[],historyFetchedAt:0});
   invalidateReport(`切換至 ${next}，等待新資料。`);updateInstrumentLabels();
   for(const id of ['last-price','change-24h','mark-price','funding-rate','rsi-value','rsi-state','atr-value','contract-size','last-updated','next-funding','report-time'])setText(id,'—');
@@ -456,8 +458,7 @@ function init() {
   $('refresh-market').addEventListener('click', loadMarket); $('copy-report').addEventListener('click', copyTradeReport); $('download-report').addEventListener('click', downloadTradeReport); $('position-form').addEventListener('submit', event => { event.preventDefault(); updatePosition(); }); ['position-side', 'position-entry', 'position-size', 'position-stop'].forEach(id => $(id).addEventListener('input', updatePosition));
   $('risk-form').addEventListener('submit', calculateRisk); $('journal-form').addEventListener('submit', addJournalEntry); $('export-journal').addEventListener('click', exportJournal); $('journal-rows').addEventListener('click', event => { const id = event.target.dataset.delete; if (id) { saveJournal(journal().filter(item => item.id !== id)); renderJournal(); } });
   updateInstrumentLabels();
-  $('instrument-select').addEventListener('change',event=>switchInstrument(event.target.value));
-  $('instrument-search').addEventListener('input',renderInstrumentOptions);
+  $('instrument-list').addEventListener('click',event=>{const button=event.target.closest('[data-symbol]');if(button)switchInstrument(button.dataset.symbol);});
   $('reload-instruments').addEventListener('click',loadInstruments);
   window.addEventListener('resize', drawChart); loadInstruments();loadMarket(); setInterval(loadMarket, 30000);
   $('analysis-cost').addEventListener('input',()=>{if(state.healthy)renderTradeReport();});
